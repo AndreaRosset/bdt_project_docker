@@ -1,0 +1,46 @@
+version: '3'
+services:
+    btc-scraper:
+        build: ./BTC_scraper
+        networks: [docker-net]
+        container_name: "btc-scraper"
+        depends_on:
+            - "redis"
+    sp500-scraper:
+        build: ./SP500_scraper
+        networks: [docker-net]
+        container_name: "sp-scraper"
+        depends_on:
+            - "redis"
+    sink:
+        build: ./sink
+        networks: [docker-net]
+        container_name: "sink"
+        depends_on:
+            - "postgresql"
+            - "redis"
+    redis:
+        image: "redis"
+        command: ['redis-server', '--appendonly', 'yes']
+        networks: [docker-net]
+        container_name: "redis"
+        volumes:
+            - "./redis-data:/data"
+    postgresql:
+        image: "postgres"
+        networks: [docker-net]
+        container_name: "postgresql"
+        environment:
+            POSTGRES_PASSWORD: "postgres"
+            POSTGRES_DB: "btc_sp500_stocks"
+    dash:
+        build: ./dashboard
+        networks: [docker-net]
+        container_name: "dash"
+        depends_on:
+            - "postgresql"
+            - "sink"
+        ports:
+            - "0.0.0.0:8050:8050"
+networks:
+    docker-net:
