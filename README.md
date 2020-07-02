@@ -1,6 +1,4 @@
-Big Data Project
-
-========
+# Big Data Project
 
 This repo contains a project for a Big Data tecnology university course.
 It aims to provide for usefull insight oabout short selling on Bitcoin
