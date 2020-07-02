@@ -14,8 +14,8 @@ This will download the various images needed fot the project to run, build and s
 
 ## Requirements
 
-*Ensure to have docker running
-*Ensure to have docker-compose
+* Ensure to have docker running
+* Ensure to have docker-compose
 
 ## Possible errors
 
