@@ -41,6 +41,6 @@ services:
             - "postgresql"
             - "sink"
         ports:
-            - "0.0.0.0:8050:8050"
+            - "8050:8050"
 networks:
     docker-net:

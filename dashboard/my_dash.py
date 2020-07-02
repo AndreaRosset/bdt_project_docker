@@ -1,36 +1,70 @@
+# Importing necessary Packages
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import math
 import time
 import matplotlib.ticker as ticker
-import csv
 from collections import OrderedDict
+
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
-import dash_table
 
-from dash.exceptions import PreventUpdate
-import multiprocessing
 import plotly.express as px
 import plotly.offline as pyo
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
 from plotly import tools
-import psycopg2 # python package for Postgres
-
 import plotly.graph_objects as go
 
-import plotly.express as px
+import psycopg2 # python package for Postgres
 
-import flask
 
-conn = psycopg2.connect(host="postgresql", dbname="btc_sp500_stocks", user="postgres", password="postgres")
-sql = """SELECT * FROM btc_sp500_stocks"""
+conn = psycopg2.connect(host="postgresql", dbname="btc_sp500_stocks", user="postgres", password="postgres") #Postgres Connector
+sql = """SELECT * FROM btc_sp500_stocks""" # Creating Table
 cur = conn.cursor()
+
+def dataframe_update(cur, sql):
+	cur.execute(sql)
+	data = cur.fetchall()
+	return pd.DataFrame(data)
+
+reduced_df = dataframe_update(cur, sql) # reduced_df contains BTC and S&P 500 prices
+
+def calc_correl(reduced_df):
+	#print(reduced_df)
+	reduced_df.columns = ["t_time", "BTC", "SP500"] #rename columns 
+	for index, value in enumerate(reduced_df["t_time"]):
+		reduced_df["t_time"][index] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(value)) # Converting Date & Time in the correct format
+     
+	reduced_df = reduced_df.iloc[1:] # Dropping first row since price is zero for S&p 500
+	print(reduced_df)
+
+
+	# Computing Moving Averages using a window of 100 reocords and a window of 200 records. Both window  are a fixed size.
+	# The first value will be computed when there are at least 10 records in the moving window, otherwise it will get NA
+
+	# S&P 500 Moving Averages
+	reduced_df["MA_100"] = reduced_df["SP500"].rolling(100,min_periods=10).mean().shift(1) # Size of the moving window = 100 
+	reduced_df["MA_200"] = reduced_df["SP500"].rolling(200,min_periods=10).mean().shift(1) # Size of the moving window = 200 
+
+	# BTC Moving Averages
+	reduced_df["MAB_100"] = reduced_df["BTC"].rolling(100,min_periods=10).mean().shift() # Size of the moving window = 100 
+	reduced_df["MAB_200"] = reduced_df["BTC"].rolling(200,min_periods=10).mean().shift() # Size of the moving window = 200 
+
+	# We will use the BTC moving average with 100 records since it seems to be closer to the BTC trend (look at optional visualizations here below)
+
+	x = reduced_df.corr() # Matrix correlation
+	print(x)
+	correl = round(x["SP500"][0],4) # Extracting the value of correlation between BTC and S&P 500 from the x matrix
+	return (correl, reduced_df)
+	
+c = calc_correl(reduced_df)
+correl = c[0]
+reduced_df = c[1]
+
+results = calc_results(reduced_df, correl)
 
 
 # Create traces moving averages - Optional visualizations
@@ -49,80 +83,53 @@ cur = conn.cursor()
 #masp500.show()
 #mabtc.show()
 
+
+# COMPUTATION: we now impose some conditions on the entity of correlation and on the BTC price to be sure to capture the right trend.
+# These conditions try to respect the Short selling strategy. 
+
 def calc_results(reduced_df, correl):
 
-	print("#########################################################")
 	print(correl)
-	print("#########################################################")
-
+	
 	results = {}
 
-	if correl == 1: #entrambi salgono/scendono : perfetta corr positiva
-		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: #se btc sale
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl,"act":"strong long", "type":"aggressive"}) #prezzi a rialzo
-		else: # se btc scende mi devo difendere
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl,"act":"short", "type":"defensive"}) #prezzi a ribasso
+	if correl == 1: # BTC and S&P 500 both increase/decrease in the same proportion : perfect positive correlation
+		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # BTC price increases (and also S&P 500)
+			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl,"act":"Long"}) # Buy to sell later at a higher price
+		else: # BTC price decreases (and also S&P 500)
+			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl,"act":"Short"}) # Sell to buy later at a lower price
 
-	elif 0 < correl < 1: #entrambi salgono o scendono  ma la corr è più bassa
-		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # prezzi btc lenti a rialzo
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl,"act":"Long","type": "neutral"})
-		else: #prezzi btc lenti a ribasso
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"short","type": "neutral"}) #prezzi lenti a ribasso
+	elif 0 < correl < 1: # BTC and S&P 500 both increase/decrease but not in the same proportion : still positive correlation
+		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # BTC price increases 
+			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl,"act":"Long"})
+		else: # BTC price decreases (and also S&P 500)
+			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Short"}) # Sell to buy later at a lower price
         
-	elif -1 < correl < 0: #uno sale e uno scende con corr bassa 
-		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # BTC sale (sp scende)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"long","type": "neutral"})
-		else: # BTC scende (sp sale)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"short", "type":"neutral"})
+	elif -1 < correl < 0: # Opposite direction: negative correlation
+		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # BTC price increases (S&P 500 decreases )
+			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Long"}) # Buy to sell later at a higher price
+		else: # BTC price decreases (S&P 500 increases)
+			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Short"}) # Sell to buy later at a lower price
         
-	elif correl == -1: # uno sale e uno scende : perfetta corr negativa
-		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: #se btc sale (sp500 scende)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"strong long","type": "aggressive"})
-		else: # se btc scende (sp500 sale)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"long", "type":"defensive"})
+	elif correl == -1: # Opposite direction: perfect negative correlation
+		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # # BTC price increases (S&P 500 decreases)
+			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Long"}) # Buy to sell later at a higher price
+		else: # BTC price decreases (S&P 500 price increases)
+			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Long"}) # Sell to buy later at a lower price
 
-	elif correl == 0: #x=0
-		results=({"date":reduced_df["t_time"].iloc[-1],"correl":"no correlation", "act":"non", "type":"non"})
-	else:
-		results=({"date":"error","correl":"error", "act":"error", "type":"error"})
+	elif correl == 0: # Correlation = 0
+		results=({"date":reduced_df["t_time"].iloc[-1],"correl":"No correlation", "act":"None"})
+	else: # Some Error
+		results=({"date":"Error","correl":"Error", "act":"Error", "type":"Error"})
     	
 	return results
 
 
-def dataframe_update(cur, sql):
-	cur.execute(sql)
-	data = cur.fetchall()
-	return pd.DataFrame(data)
 
-reduced_df = dataframe_update(cur, sql)
+# Create figures for the Dash
 
-def calc_correl(reduced_df):
-	#print(reduced_df)
-	reduced_df.columns = ["t_time", "BTC", "SP500"]
-	for index, value in enumerate(reduced_df["t_time"]):
-		reduced_df["t_time"][index] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(value))
-    
-	reduced_df = reduced_df.iloc[1:]
-	print(reduced_df)
 
-	reduced_df["MA_100"] = reduced_df["SP500"].rolling(100,min_periods=10).mean().shift(1) #9 giorni
-	reduced_df["MA_200"] = reduced_df["SP500"].rolling(200,min_periods=10).mean().shift(1) #21 giorni
-	
-	reduced_df["MAB_100"] = reduced_df["BTC"].rolling(100,min_periods=10).mean().shift()
-	reduced_df["MAB_200"] = reduced_df["BTC"].rolling(200,min_periods=10).mean().shift()
-
-	x = reduced_df.corr()
-	print(x)
-	correl = round(x["SP500"][0],4)
-	return (correl, reduced_df)
-	
-c = calc_correl(reduced_df)
-correl = c[0]
-reduced_df = c[1]
-
-results = calc_results(reduced_df, correl)
-
-def create_figure_btc_sp500(reduced_df):
+def create_figure_btc_sp500(reduced_df): # Displaying BTC and S&P500 in the same plot with double y-axis for a fast comparison
 
 	fig = go.Figure()
 
@@ -132,7 +139,6 @@ def create_figure_btc_sp500(reduced_df):
 		name="S&P 500",
 		line=dict(color='orange')
 	))
-
 
 	fig.add_trace(go.Scatter(
 		x=reduced_df["t_time"],
@@ -171,25 +177,24 @@ def create_figure_btc_sp500(reduced_df):
 			anchor="x",
 			overlaying="y",
 			side="right",
-    	    #position=0.15
 		),
 
 	)
 
-	# Update layout properties
+	# Update layout properties for fig
 	fig.update_layout(title_text="S&P 500 and BTC Prices", plot_bgcolor='rgb(10,10,10)',paper_bgcolor='black',font=dict( color = 'yellow', size=18))
 	return fig
 	
 fig = create_figure_btc_sp500(reduced_df)
 
-def create_figure_btc(reduced_df):
+
+
+def create_figure_btc(reduced_df): # Displaying BTC prices (fig1)
 
 	fig1 = go.Figure()
 	fig1.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['BTC'],mode='lines',name='BTC',
     	                      line=dict(color='#00FE35'),))
                           
-              
-
 	fig1.update_layout(plot_bgcolor='rgb(10,10,10)',paper_bgcolor='black', clickmode= 'event+select',
     	               xaxis=dict(title='Time', titlefont=dict(color='yellow',size=12),
     	                          showspikes= True, color='yellow',showgrid = False,
@@ -203,7 +208,7 @@ def create_figure_btc(reduced_df):
 	
 fig1 = create_figure_btc(reduced_df)
 
-def create_figure_sp500(reduced_df):
+def create_figure_sp500(reduced_df): # Displaying S&P 500 prices (fig2)
 
 	fig2 = go.Figure()
 	fig2.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['SP500'],mode='lines',name='BTC',
@@ -224,11 +229,9 @@ def create_figure_sp500(reduced_df):
 	
 fig2 = create_figure_sp500(reduced_df)
 
-import flask
 
-#server = flask.Flask(__name__) # define flask app.server
-#app = dash.Dash(__name__, server=server) # call flask server
-#gunicorn my_dash:app.server -b :8000
+
+# Creating Plotly Dash for visualize results and position to take on Bitcoin 
 
 app = dash.Dash()
 app.layout = html.Div()
@@ -237,8 +240,7 @@ def calc_options(results):
 	return {
     	'DateTime': [results["date"]],
     	'Correlation': [results['correl']],
-		'Act': [results['act']],
-		'Type': [results['type']]
+		'Position': [results['act']],
 	}
 	
 all_options = calc_options(results)
@@ -255,13 +257,11 @@ app.layout = html.Div(children=[
                                       html.Div(className='Suggestion',
                                            
                                children= [  
-                                      html.H1('Position on Bitcoin'),
-                                      html.H2('Our suggestion is to stay:'),
-                                      html.H3(results["act"]),
+                                      html.H1('Results and Position on Bitcoin'),
                                    ]),
                         html.Hr(),
                         
-                        html.Div([ # Define RadioItems 
+                        html.Div([ # Define RadioItems for results (DateTime, Correlation and Position)
                                 dcc.RadioItems(
                                 id='results-dropdown',
                                     style={'marginTop': 0, 'marginBottom': 0},
@@ -274,7 +274,7 @@ app.layout = html.Div(children=[
                             html.Div(id='display-selected-values')
                         ]),
                                    
-    # Define Dropdown
+    # Define Dropdown for graphs
     html.Div(className='drop-dwn',children=[
         dcc.Dropdown(id='drop-indicator-px',
                 multi = False,
@@ -293,9 +293,9 @@ app.layout = html.Div(children=[
 ])
 ])      
 
-# Making Dashboard Interactive using callbacks
+# Making Dashboard Interactive using callbacks and updating Results
 
-# Callback for visualize graphs one at time       
+# Callback for visualize graphs one at time. It is possible to choose which chart to see. 
 @app.callback(
     dash.dependencies.Output('timeseries', 'figure'),
     [dash.dependencies.Input('drop-indicator-px', 'value')])   
@@ -364,5 +364,5 @@ def set_results_value(available_options):
     
 if __name__ == "__main__" :
 	app.run_server(debug=True, use_reloader=False, host="0.0.0.0")         
-    
+
 # use_reloader = False since we used Jupyter
