@@ -59,12 +59,6 @@ def calc_correl(reduced_df):
 	print(x)
 	correl = round(x["SP500"][0],4) # Extracting the value of correlation between BTC and S&P 500 from the x matrix
 	return (correl, reduced_df)
-	
-c = calc_correl(reduced_df)
-correl = c[0]
-reduced_df = c[1]
-
-results = calc_results(reduced_df, correl)
 
 
 # Create traces moving averages - Optional visualizations
@@ -123,6 +117,13 @@ def calc_results(reduced_df, correl):
 		results=({"date":"Error","correl":"Error", "act":"Error"})
     	
 	return results
+	
+
+c = calc_correl(reduced_df)
+correl = c[0]
+reduced_df = c[1]
+
+results = calc_results(reduced_df, correl)
 
 
 
