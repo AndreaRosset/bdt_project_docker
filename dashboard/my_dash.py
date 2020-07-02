@@ -22,7 +22,7 @@ import psycopg2 # python package for Postgres
 
 
 conn = psycopg2.connect(host="postgresql", dbname="btc_sp500_stocks", user="postgres", password="postgres") #Postgres Connector
-sql = """SELECT * FROM btc_sp500_stocks""" # Creating Table
+sql = """SELECT * FROM btc_sp500_stocks""" # Select query
 cur = conn.cursor()
 
 def dataframe_update(cur, sql):
