@@ -120,7 +120,7 @@ def calc_results(reduced_df, correl):
 	elif correl == 0: # Correlation = 0
 		results=({"date":reduced_df["t_time"].iloc[-1],"correl":"No correlation", "act":"None"})
 	else: # Some Error
-		results=({"date":"Error","correl":"Error", "act":"Error", "type":"Error"})
+		results=({"date":"Error","correl":"Error", "act":"Error"})
     	
 	return results
 
