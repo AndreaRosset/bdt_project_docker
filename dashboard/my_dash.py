@@ -22,11 +22,9 @@ import psycopg2 # python package for Postgres
 
 
 conn = psycopg2.connect(host="postgresql", dbname="btc_sp500_stocks", user="postgres", password="postgres") #Postgres Connector
-<<<<<<< HEAD
+
 sql = """SELECT * FROM btc_sp500_stocks ORDER BY t_time DESC LIMIT 100""" # Creating Table
-=======
-sql = """SELECT * FROM btc_sp500_stocks""" # Select query
->>>>>>> d8df6de061703af17094eaa57a75dcea6b77c378
+
 cur = conn.cursor()
 
 def dataframe_update(cur, sql):
