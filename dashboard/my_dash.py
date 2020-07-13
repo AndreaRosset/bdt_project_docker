@@ -22,7 +22,7 @@ import psycopg2 # python package for Postgres
 
 
 conn = psycopg2.connect(host="postgresql", dbname="btc_sp500_stocks", user="postgres", password="postgres") #Postgres Connector
-sql = """SELECT * FROM btc_sp500_stocks""" # Creating Table
+sql = """SELECT * FROM btc_sp500_stocks ORDER BY t_time DESC LIMIT 100""" # Creating Table
 cur = conn.cursor()
 
 def dataframe_update(cur, sql):
@@ -39,7 +39,7 @@ def calc_correl(reduced_df):
 		reduced_df["t_time"][index] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(value)) # Converting Date & Time in the correct format
      
 	reduced_df = reduced_df.iloc[1:] # Dropping first row since price is zero for S&p 500
-	print(reduced_df)
+	#print(reduced_df)
 
 
 	# Computing Moving Averages using a window of 100 reocords and a window of 200 records. Both window  are a fixed size.
@@ -56,7 +56,7 @@ def calc_correl(reduced_df):
 	# We will use the BTC moving average with 100 records since it seems to be closer to the BTC trend (look at optional visualizations here below)
 
 	x = reduced_df.corr() # Matrix correlation
-	print(x)
+	#print(x)
 	correl = round(x["SP500"][0],4) # Extracting the value of correlation between BTC and S&P 500 from the x matrix
 	return (correl, reduced_df)
 
@@ -83,7 +83,7 @@ def calc_correl(reduced_df):
 
 def calc_results(reduced_df, correl):
 
-	print(correl)
+	#print(correl)
 	
 	results = {}
 
@@ -284,7 +284,8 @@ app.layout = html.Div(children=[
                     {'label':'S&P 500','value': 'sp500'},
                     {'label':'BOTH', 'value': 'both'}
                 ],#value=['btc','sp500','both'],
-                placeholder='Select graph'),
+                value='both',
+				clearable=False,),
     ]),
     
     # Define (space for) graph
@@ -364,6 +365,6 @@ def set_results_value(available_options):
     
     
 if __name__ == "__main__" :
-	app.run_server(debug=True, use_reloader=False, host="0.0.0.0")         
+	app.run_server(debug=False, use_reloader=False, host="0.0.0.0")         
 
 # use_reloader = False since we used Jupyter
