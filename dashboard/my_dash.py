@@ -21,9 +21,9 @@ import plotly.graph_objects as go
 import psycopg2 # python package for Postgres
 
 
-conn = psycopg2.connect(host="postgresql", dbname="btc_sp500_stocks", user="postgres", password="postgres") #Postgres Connector
+conn = psycopg2.connect(host="172.20.0.2", dbname="btc_sp500_stocks", user="postgres", password="postgres") #Postgres Connector
 
-sql = """SELECT * FROM btc_sp500_stocks ORDER BY t_time DESC LIMIT 100""" # Creating Table
+sql = """SELECT * FROM btc_sp500_stocks ORDER BY t_time DESC LIMIT 7000""" # Creating Table
 
 cur = conn.cursor()
 
@@ -48,12 +48,12 @@ def calc_correl(reduced_df):
 	# The first value will be computed when there are at least 10 records in the moving window, otherwise it will get NA
 
 	# S&P 500 Moving Averages
-	reduced_df["MA_100"] = reduced_df["SP500"].rolling(100,min_periods=10).mean().shift(1) # Size of the moving window = 100 
-	reduced_df["MA_200"] = reduced_df["SP500"].rolling(200,min_periods=10).mean().shift(1) # Size of the moving window = 200 
+	# reduced_df["MA_100"] = reduced_df["SP500"].rolling(500,min_periods=10).mean().shift(1) # Size of the moving window = 100 
+	# reduced_df["MA_200"] = reduced_df["SP500"].rolling(200,min_periods=10).mean().shift(1) # Size of the moving window = 200 
 
 	# BTC Moving Averages
-	reduced_df["MAB_100"] = reduced_df["BTC"].rolling(100,min_periods=10).mean().shift() # Size of the moving window = 100 
-	reduced_df["MAB_200"] = reduced_df["BTC"].rolling(200,min_periods=10).mean().shift() # Size of the moving window = 200 
+	reduced_df["MAB_500"] = reduced_df["BTC"].rolling(500,min_periods=500).mean().shift() # Size of the moving window = 100 
+	reduced_df["MAB_200"] = reduced_df["BTC"].rolling(200,min_periods=200).mean().shift() # Size of the moving window = 200 
 
 	# We will use the BTC moving average with 100 records since it seems to be closer to the BTC trend (look at optional visualizations here below)
 
@@ -67,18 +67,18 @@ def calc_correl(reduced_df):
 #masp500 = go.Figure()
 #masp500.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['SP500'], mode='lines', name='S&P 500'))
 #masp500.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['MA_100'], mode='lines', name='MA 100 records'))
-#masp500.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['MA_200'], mode='lines', name='MA 200 records'))
+#masp500.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['MA_200'], mode='lines', name='MA 200 records'))S
 #masp500.update_layout(title='S&P Moving Averages', xaxis_title='Time',)
 
-#mabtc = go.Figure()
-#mabtc.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['BTC'],mode='lines',name='BTC'))
-#mabtc.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['MAB_100'], mode='lines', name='MAB 100 records'))
-#mabtc.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['MAB_200'], mode='lines', name='MAB 200 records'))
-#mabtc.update_layout(title='BTC Moving Averages', xaxis_title='Time',)
+def print_graph(reduced_df):
+	mabtc = go.Figure()
+	mabtc.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['BTC'],mode='lines',name='BTC'))
+	mabtc.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['MAB_500'], mode='lines', name='MAB 500 records'))
+	mabtc.add_trace(go.Scatter(x=reduced_df['t_time'], y=reduced_df['MAB_200'], mode='lines', name='MAB 200 records'))
+	mabtc.update_layout(title='BTC Moving Averages', xaxis_title='Time',)
 
-#masp500.show()
-#mabtc.show()
-
+	#masp500.show()
+	mabtc.show()
 
 # COMPUTATION: we now impose some conditions on the entity of correlation and on the BTC price to be sure to capture the right trend.
 # These conditions try to respect the Short selling strategy. 
@@ -90,31 +90,33 @@ def calc_results(reduced_df, correl):
 	results = {}
 
 	if correl == 1: # BTC and S&P 500 both increase/decrease in the same proportion : perfect positive correlation
-		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # BTC price increases (and also S&P 500)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl,"act":"Long"}) # Buy to sell later at a higher price
+		if reduced_df["MAB_500"].iloc[1] < reduced_df["BTC"].iloc[1]: # BTC price increases (and also S&P 500)
+			results=({"date":reduced_df["t_time"].iloc[1],"correl":correl,"act":"Long"}) # Buy to sell later at a higher price
 		else: # BTC price decreases (and also S&P 500)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl,"act":"Short"}) # Sell to buy later at a lower price
+			results=({"date":reduced_df["t_time"].iloc[1],"correl":correl,"act":"Short"}) # Sell to buy later at a lower price
 
 	elif 0 < correl < 1: # BTC and S&P 500 both increase/decrease but not in the same proportion : still positive correlation
-		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # BTC price increases 
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl,"act":"Long"})
+		if reduced_df["MAB_500"].iloc[1] < reduced_df["BTC"].iloc[1]: # BTC price increases 
+			results=({"date":reduced_df["t_time"].iloc[1],"correl":correl,"act":"Long"})
+
 		else: # BTC price decreases (and also S&P 500)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Short"}) # Sell to buy later at a lower price
+			results=({"date":reduced_df["t_time"].iloc[1],"correl":correl, "act":"Short"}) # Sell to buy later at a lower price
         
 	elif -1 < correl < 0: # Opposite direction: negative correlation
-		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # BTC price increases (S&P 500 decreases )
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Long"}) # Buy to sell later at a higher price
+		if reduced_df["MAB_500"].iloc[1] < reduced_df["BTC"].iloc[1]: # BTC price increases (S&P 500 decreases )
+			results=({"date":reduced_df["t_time"].iloc[1],"correl":correl, "act":"Long"}) # Buy to sell later at a higher price
+
 		else: # BTC price decreases (S&P 500 increases)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Short"}) # Sell to buy later at a lower price
+			results=({"date":reduced_df["t_time"].iloc[1],"correl":correl, "act":"Short"}) # Sell to buy later at a lower price
         
 	elif correl == -1: # Opposite direction: perfect negative correlation
-		if reduced_df["MAB_100"].iloc[-1] < reduced_df["BTC"].iloc[-1]: # # BTC price increases (S&P 500 decreases)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Long"}) # Buy to sell later at a higher price
+		if reduced_df["MAB_500"].iloc[1] < reduced_df["BTC"].iloc[1]: # # BTC price increases (S&P 500 decreases)
+			results=({"date":reduced_df["t_time"].iloc[1],"correl":correl, "act":"Long"}) # Buy to sell later at a higher price
 		else: # BTC price decreases (S&P 500 price increases)
-			results=({"date":reduced_df["t_time"].iloc[-1],"correl":correl, "act":"Long"}) # Sell to buy later at a lower price
+			results=({"date":reduced_df["t_time"].iloc[1],"correl":correl, "act":"Long"}) # Sell to buy later at a lower price
 
 	elif correl == 0: # Correlation = 0
-		results=({"date":reduced_df["t_time"].iloc[-1],"correl":"No correlation", "act":"None"})
+		results=({"date":reduced_df["t_time"].iloc[1],"correl":"No correlation", "act":"None"})
 	else: # Some Error
 		results=({"date":"Error","correl":"Error", "act":"Error"})
     	
@@ -126,6 +128,7 @@ correl = c[0]
 reduced_df = c[1]
 
 results = calc_results(reduced_df, correl)
+print_graph(reduced_df)
 
 
 
