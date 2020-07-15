@@ -1,6 +1,7 @@
 import redis
 import json
 import psycopg2
+# import test                           Not used to improve performance
 
 redis_ip = "redis"
 redis_port = 6379
@@ -126,9 +127,15 @@ while True:
             db_insertion(SP500_BTC_db_entry)								#insert into postgres
 
 		#updete lists
-
+	
         SP500 = [SP500[-1]]
         BTC = [last_BTC]
+        
+        # reduced_df = test.dataframe_update()                            
+        # x = test.calc_correl(reduced_df)
+        # correl = x[0]
+        # reduced_df = x[1]
+        # test.calc_results(reduced_df, correl) """
  
  #if SP500 value changes we fix this change in the database
         
@@ -166,10 +173,16 @@ while True:
         
             db_insertion(SP500_BTC_db_entry)								#insert into postgres
         
-        #updete lists
+		#updete lists
         
         SP500 = [last_SP500]
         BTC = [BTC[-1]]
+        
+        # reduced_df = test.dataframe_update()
+        # x = test.calc_correl(reduced_df)
+        # correl = x[0]
+        # reduced_df = x[1]
+        # test.calc_results(reduced_df, correl) """
         
     else:
         

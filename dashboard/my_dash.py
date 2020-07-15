@@ -21,9 +21,9 @@ import plotly.graph_objects as go
 import psycopg2 # python package for Postgres
 
 
-conn = psycopg2.connect(host="172.20.0.2", dbname="btc_sp500_stocks", user="postgres", password="postgres") #Postgres Connector
+conn = psycopg2.connect(host="postgresql", dbname="btc_sp500_stocks", user="postgres", password="postgres") #Postgres Connector
 
-sql = """SELECT * FROM btc_sp500_stocks ORDER BY t_time DESC LIMIT 7000""" # Creating Table
+sql = """SELECT * FROM btc_sp500_stocks ORDER BY t_time DESC LIMIT 502""" # Creating Table
 
 cur = conn.cursor()
 
@@ -128,7 +128,7 @@ correl = c[0]
 reduced_df = c[1]
 
 results = calc_results(reduced_df, correl)
-print_graph(reduced_df)
+# print_graph(reduced_df)  this graph does not show up if using docker
 
 
 
